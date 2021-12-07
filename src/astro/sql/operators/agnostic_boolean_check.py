@@ -7,9 +7,9 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from psycopg2 import sql
 from sqlalchemy.sql.expression import table
 from sqlalchemy.sql.functions import Function
-from sqlalchemy.sql.schema import Table
 
 from astro.sql.operators.sql_decorator import SqlDecoratoratedOperator
+from astro.sql.table import Table
 
 
 class Check:
@@ -53,18 +53,15 @@ class Check:
 class AgnosticBooleanCheck(SqlDecoratoratedOperator):
     def __init__(
         self,
-        database: str,
         checks: List[Check],
-        table: str,
+        table: Table,
         max_rows_returned: int,
-        conn_id: str = "",
         **kwargs,
     ):
         """
         :param table: table name
         :type table: str
         :param database: database name
-        :type database: str
         :param checks: check class object, which represent boolean expression
         :type checks: Check
         :param max_rows_returned: number of row returned if the check fails.
@@ -73,10 +70,10 @@ class AgnosticBooleanCheck(SqlDecoratoratedOperator):
 
         self.table = table
         self.max_rows_returned = max_rows_returned
-        self.conn_id = conn_id
+        self.conn_id = table.conn_id
         self.checks = checks
 
-        task_id = table + "_" + "boolean_check"
+        task_id = table.table_name + "_" + "boolean_check"
 
         def null_function():
             pass
@@ -84,11 +81,13 @@ class AgnosticBooleanCheck(SqlDecoratoratedOperator):
         super().__init__(
             raw_sql=True,
             parameters={},
-            conn_id=conn_id,
+            conn_id=table.conn_id,
+            database=table.database,
+            schema=table.schema,
+            warehouse=table.warehouse,
             task_id=task_id,
             op_args=(),
             python_callable=null_function,
-            database=database,
             **kwargs,
         )
 
@@ -200,9 +199,9 @@ def wrap_identifier(inp):
 
 def boolean_check(
     table: Table,
-    database: str,
-    checks: List[Check],
-    max_rows_returned: int,
+    database: str = "",
+    checks: List[Check] = [],
+    max_rows_returned: int = 100,
     conn_id: str = "",
 ):
     """
